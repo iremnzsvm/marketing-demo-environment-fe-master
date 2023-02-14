@@ -1,0 +1,26 @@
+// Variable overrides first
+$primary: #345;
+$secondary: #def;
+$enable-shadows: true;
+$prefix: "mo-";
+
+// Then import Bootstrap
+@import "../node_modules/bootstrap/scss/bootstrap";
+
+body {
+  background-color: #def;
+}
+
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.light-background {
+  background-color: #fff;
+}

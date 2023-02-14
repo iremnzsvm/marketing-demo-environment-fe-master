@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: marketing-demo-environment-fe
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+  - host: "env.em.api-evam.com"
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: marketing-demo-environment-fe
+            port:
+              number: 81

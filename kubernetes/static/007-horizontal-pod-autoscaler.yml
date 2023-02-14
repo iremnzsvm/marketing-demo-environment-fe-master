@@ -1,0 +1,23 @@
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: marketing-demo-environment-fe
+  labels:
+    app.kubernetes.io/name: marketing-demo-environment-fe
+    app.kubernetes.io/instance: marketing-demo-environment-fe-dev
+    app.kubernetes.io/group: marketing
+    app.kubernetes.io/version: "7.1"
+spec:
+  minReplicas: 1
+  maxReplicas: 5
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: marketing-demo-environment-fe
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75

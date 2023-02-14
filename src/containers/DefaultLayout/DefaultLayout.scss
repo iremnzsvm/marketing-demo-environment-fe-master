@@ -1,0 +1,26 @@
+.up-button {
+  position: fixed;
+  right: 50px;
+  opacity: 0.3 !important;
+}
+
+.show-up-button {
+  transform: scale(2.7);
+  bottom: 80px;
+  visibility: visible;
+  transition: all 300ms;
+}
+
+.show-up-button:hover {
+  transform: scale(3.3);
+  bottom: 80px;
+  visibility: visible;
+  transition: all 300ms;
+}
+
+.hide-up-button {
+  transform: scale(0.7);
+  bottom: -150px;
+  visibility: hidden;
+  transition: all 500ms;
+}

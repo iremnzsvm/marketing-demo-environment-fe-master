@@ -1,0 +1,41 @@
+.form-signin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 40px;
+  padding-bottom: 40px;
+  width: 100%;
+}
+
+@media only screen and (max-width: 600px) {
+  .login-form {
+    width: 90%;
+    padding: 15px;
+  }
+}
+
+@media only screen and (min-width: 601px) {
+  .login-form {
+    width: 450px;
+    padding: 15px;
+  }
+}
+
+
+.form-signin .form-floating:focus-within {
+  z-index: 2;
+}
+
+.form-signin input[type="userName"] {
+  margin-bottom: -1px;
+  border-bottom-right-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+
+}
+
+.form-signin input[type="password"] {
+  margin-bottom: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+
+}

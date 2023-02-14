@@ -1,0 +1,237 @@
+def CURRENT_STAGE
+
+pipeline {
+    agent any
+    options {
+        timeout(time: 45, unit: 'MINUTES')
+    }
+
+    environment {
+        REPOSITORY = "https://github.com/evamcep/marketing-demo-environment-fe.git"
+        NAMESPACE = "dev"
+        MODULE = "Demo Environment Fe"
+        DOCKER_IMAGE_REPOSITORY = "evam-demo-environment-fe"
+        MODULE_HEALTH_URL = "https://env.em.api-evam.com"
+        DOCKER_IMAGE_TAG_PREFIX = "dev-"
+
+        AWS_REGION = credentials('aws-region')
+        AWS_ACCOUNT = credentials('aws-account')
+        SLACK_CHANNEL_TEST = credentials('evam-slack-test-channel')
+        SLACK_CHANNEL_DEV = credentials('evam-slack-channel')
+        SLACK_CHANNEL = ""
+
+    }
+
+    parameters {
+        choice(name: "ENVIRONMENT", choices: ["develop", "test"], description: "This parameters contains to choices develop, test")
+    }
+
+    stages {
+        stage('Preparation') {
+            steps {
+                script {
+                    echo "Environment: ${params.ENVIRONMENT}"
+                    if (params.ENVIRONMENT == "test") {
+                        DOCKER_IMAGE_TAG_PREFIX = "test-"
+                        NAMESPACE = "test"
+                        MODULE_HEALTH_URL = "https://test.em.api-evam.com/"
+                        SLACK_CHANNEL = SLACK_CHANNEL_TEST
+                    } else if (params.ENVIRONMENT == "develop") {
+                        SLACK_CHANNEL = SLACK_CHANNEL_DEV
+                    }
+                }
+            }
+        }
+        stage('Checkout') {
+            steps {
+                script {
+                    CURRENT_STAGE = env.STAGE_NAME
+                    git branch: "${env.BRANCH_NAME}", credentialsId: "evam-github-credential", url: "${REPOSITORY}"
+                    env.GIT_COMMIT_MSG = sh(script: 'git log -1 --pretty=%B ${GIT_COMMIT}', returnStdout: true).trim()
+                    env.GIT_AUTHOR = sh(script: 'git log -1 --pretty=format:"%an" ${GIT_COMMIT}', returnStdout: true).trim()
+                    env.GIT_DATE = sh(script: 'git log -1 --pretty=format:"%ad" ${GIT_COMMIT}', returnStdout: true).trim()
+                    echo "Commit id: ${GIT_COMMIT}"
+                    echo "Commit message: ${GIT_COMMIT_MSG}"
+                    echo "Commit author: ${GIT_AUTHOR}"
+                    echo "Commit date: ${GIT_DATE}"
+                }
+            }
+        }
+        stage('Project & Docker Build') {
+            steps {
+                script {
+                    CURRENT_STAGE = env.STAGE_NAME
+                    withCredentials([file(credentialsId: 'mvn-settings-xml', variable: 'settingsxml')]) {
+                        writeFile file: 'settings.xml', text: readFile(settingsxml)
+                    }
+                    sh "docker build --no-cache --tag ${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DOCKER_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG_PREFIX}${GIT_COMMIT} ."
+                }
+            }
+        }
+        stage('Docker Login') {
+            steps {
+                script {
+                    CURRENT_STAGE = env.STAGE_NAME
+                    sh 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT}.dkr.ecr.eu-central-1.amazonaws.com'
+                }
+            }
+        }
+        stage('ECR Push') {
+            steps {
+                script {
+                    CURRENT_STAGE = env.STAGE_NAME
+                    sh "docker push ${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DOCKER_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG_PREFIX}${GIT_COMMIT}"
+                }
+            }
+        }
+        stage('Update Properties Dev') {
+            when {
+                expression {
+                    params.ENVIRONMENT == 'develop'
+                }
+            }
+            steps {
+                script {
+                    CURRENT_STAGE = env.STAGE_NAME
+                    def propertyChangeMap = [
+                            "kubernetes/static/006-deployment.yml": [
+                                    ["old": ":develop", "new": ":${DOCKER_IMAGE_TAG_PREFIX}${GIT_COMMIT}"]
+                            ]
+                    ]
+                    def property = load("${JENKINS_HOME}/scripts/Property.groovy")
+                    property.changeProperties(propertyChangeMap)
+                    echo 'Properties updated successfully.'
+                }
+            }
+        }
+        stage('Update Properties Test') {
+            when {
+                expression {
+                    params.ENVIRONMENT == 'test'
+                }
+            }
+            steps {
+                script {
+                    FAILED_STAGE = env.STAGE_NAME
+                    def propertyChangeMap = [
+                            "kubernetes/static/001-config-configmap.yml"         : [
+                                    ["old": "dev.em.api-evam.com", "new": "test.em.api-evam.com"]
+                            ],
+                            "kubernetes/static/005-service.yml"                  : [
+                                    ["old": "demo-environment-fe-dev", "new": "demo-environment-fe-dev"]
+                            ],
+                            "kubernetes/static/006-deployment.yml"               : [
+                                    ["old": ":develop", "new": ":${DOCKER_IMAGE_TAG_PREFIX}${GIT_COMMIT}"],
+                                    ["old": "demo-environment-fe-dev", "new": "demo-environment-fe-dev"]
+                            ],
+                            "kubernetes/static/007-horizontal-pod-autoscaler.yml": [
+                                    ["old": "demo-environment-fe-dev", "new": "demo-environment-fe-dev"]
+                            ],
+                            "kubernetes/static/008-nginx-ingress.yml"            : [
+                                    ["old": "dev.em.api-evam.com", "new": "test.em.api-evam.com"]
+                            ]
+                    ]
+                    def property = load("${JENKINS_HOME}/scripts/Property.groovy")
+                    property.changeProperties(propertyChangeMap)
+                    echo 'Properties updated successfully.'
+                }
+            }
+        }
+        stage('Down') {
+            steps {
+                dir("kubernetes") {
+                    script {
+                        try {
+                            CURRENT_STAGE = env.STAGE_NAME
+                            withEnv(["K8S_NAMESPACE=${NAMESPACE}"]) {
+                                sh './delete.sh'
+                            }
+                        } catch (Exception e) {
+                            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                                echo 'Exception occurred: ' + e.toString()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                dir("kubernetes") {
+                    script {
+                        CURRENT_STAGE = env.STAGE_NAME
+                        withEnv(["K8S_NAMESPACE=${NAMESPACE}"]) {
+                            sh './deploy.sh'
+                        }
+                    }
+                }
+            }
+        }
+        stage('Health Check') {
+            steps {
+                timeout(time: 180, unit: 'SECONDS') {
+                    waitUntil(initialRecurrencePeriod: 3000) {
+                        script {
+                            CURRENT_STAGE = env.STAGE_NAME
+                            try {
+                                def response = httpRequest "${MODULE_HEALTH_URL}"
+                                def status = response.status
+
+                                if (status >= 200 && status < 300) {
+                                    echo "Module health response success. Status: ${status}"
+                                    return true
+                                }
+                                return false
+                            } catch (exception) {
+                                echo "Health check error occurred: ${exception}"
+                                return false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                def now = new Date()
+                def currentDate = now.format("yyyy-MM-dd HH.mm.ss Z", TimeZone.getTimeZone('Europe/Istanbul'))
+                def color = "danger"
+                def failOnError = true
+                def statusMessage = "Build failed :x:"
+
+                if (currentBuild.currentResult == "ABORTED") {
+                    color = "warning"
+                    failOnError = false
+                    statusMessage = "Build aborted :warning:"
+                } else if (currentBuild.currentResult == "SUCCESS") {
+                    color = "good"
+                    failOnError = false
+                    statusMessage = "Build deployed successfully :white_check_mark:"
+                }
+
+                slackSend color: "${color}", failOnError: "${failOnError}", channel: "${SLACK_CHANNEL}", message: """
+Message: ${statusMessage}
+Module: ${MODULE}
+Branch: ${env.BRANCH_NAME}
+Docker Image Tag: ${DOCKER_IMAGE_TAG_PREFIX}${GIT_COMMIT}
+Namespace: ${NAMESPACE}
+Commit Id: ${GIT_COMMIT}
+Commit Message: ${GIT_COMMIT_MSG}
+Commit Author: ${GIT_AUTHOR}
+Commit Date: ${GIT_DATE}
+Pipeline: ${env.JOB_NAME}
+Latest Stage: ${CURRENT_STAGE}
+Status: ${currentBuild.currentResult}
+Duration: ${currentBuild.durationString.minus(' and counting')}
+Job Date: ${currentDate}
+Jenkins User Name: ${currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')['userName'].isEmpty() ? "Auto triggerred" : currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')['userName'][0]}
+Build: <${env.RUN_DISPLAY_URL}|#${env.BUILD_NUMBER}>
+"""
+            }
+
+            deleteDir()
+        }
+    }
+}

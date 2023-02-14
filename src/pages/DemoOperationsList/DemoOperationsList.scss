@@ -1,0 +1,47 @@
+@media only screen and (max-width: 992px) {
+  .demo-operation-list {
+    width: 90%;
+    padding: 15px;
+  }
+  .collapsing {
+    height: 45px;
+  }
+  .modal-element {
+    position: absolute;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 0;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    bottom: 0;
+    max-height: 80vh;
+    padding-top: 3%;
+  }
+}
+
+@media only screen and (min-width: 993px) {
+  .demo-operation-list {
+    width: 70%;
+    padding: 15px;
+  }
+
+  .modal-element {
+    width: 60%;
+    border-radius: 3px;
+  }
+
+}
+
+.container-element {
+  position: relative;
+  outline: none;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  justify-content: space-between;
+  flex-direction: column;
+  z-index: 15;
+  height: 100vh;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}

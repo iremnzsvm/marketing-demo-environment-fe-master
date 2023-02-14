@@ -1,0 +1,45 @@
+.notification__content {
+  border-radius: 6px;
+  overflow: hidden;
+  height: 48px;
+  display: flex;
+}
+
+.notification__check {
+  background-color: #009900;
+  border: 1px solid #009900;
+}
+
+.notification__info {
+  background-color: #EB9700;
+  border: 1px solid #EB9700;
+}
+
+.notification__warning {
+  background-color: #E60000;
+  border: 1px solid #E60000;
+}
+
+.notification__error-icon {
+  width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification__error-text {
+  background-color: #ffffff;
+  font-family: VodafoneRg-Regular, sans-serif;
+  font-size: 16px;
+  color: #333333;
+  letter-spacing: -0.1px;
+  text-align: left;
+  line-height: 22px;
+  width: calc(100% - 52px);
+
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  padding-left: 15px;
+}
+
